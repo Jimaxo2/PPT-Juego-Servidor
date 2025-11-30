@@ -13,7 +13,7 @@ namespace PPT_Juego_Servidor
     internal class BDconexion
     {
         // Conexion Jimmy
-        public static SqlConnection conn = new SqlConnection("Server=MSI\\MSSQLSERVER02;Database=_NombreBaseDeDatos_;Integrated Security=True;TrustServerCertificate=True;");
+        public static SqlConnection conn = new SqlConnection("Server=MSI\\MSSQLSERVER02;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
 
         public static int ejecutarConsulta(string consulta)
         {
