@@ -77,7 +77,7 @@ namespace PPT_Juego_Servidor
                 reader.Close();
 
             }
-            catch (SqlException e)
+            catch (Exception e)
             {
                 strReturn = new string[1];
                 strReturn[0] = "Error: " + e.Message;

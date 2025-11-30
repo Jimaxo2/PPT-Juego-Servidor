@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using PPT_Juego_Servidor;
+using System.Windows.Forms.VisualStyles;
 
 namespace PPT_Juego_Servidor
 {
@@ -65,7 +66,7 @@ namespace PPT_Juego_Servidor
 
                     lineasPendientes.Add(linea);
 
-                    // ¿Ya tenemos dos líneas? → Procesar mensaje completo
+                    // ¿Ya tenemos dos líneas? -> Procesar mensaje completo
                     if (lineasPendientes.Count == 2)
                     {
                         string comando = lineasPendientes[0];
@@ -74,27 +75,98 @@ namespace PPT_Juego_Servidor
                         switch (comando)
                         {
                             case "IniciarSesion":
-                            {
-                                string[] datosUsuario = BDconexion.obtenerDatos(
-                                        $@"SELECT [NombreJugador]
-                                                  ,[Contrasenia]
-                                              FROM [PiedraPapelTijera1DB].[dbo].[Jugadores]"
-                                );
-                                if (datosUsuario.Length < 1)
                                 {
-                                    string respuesta = datosUsuario[0];
-                                    byte[] data = Encoding.UTF8.GetBytes(respuesta);
-                                    stream.Write(data, 0, data.Length);
+                                    // argumentos = "Javier|Password12"
+                                    string[] partes = argumentos.Split('|');
+
+                                    // Validar formato correcto
+                                    if (partes.Length < 2)
+                                    {
+                                        string respuesta = "Error|Formato incorrecto\n";
+                                        byte[] dataErr = Encoding.UTF8.GetBytes(respuesta);
+                                        stream.Write(dataErr, 0, dataErr.Length);
+                                        break;
+                                    }
+
+                                    string usuario = partes[0];
+                                    string contrasena = partes[1];
+
+                                    // Consultar en la base de datos
+                                    string[] datosUsuario = BDconexion.obtenerDatos(
+                                        $@"SELECT [JugadorID]
+                                              ,[NombreJugador]
+                                              ,[Contrasenia]
+                                              ,[TotalPartidas]
+                                              ,[PartidasGanadas]
+                                              ,[PartidasEmpatadas]
+                                              ,[PartidasPerdidas]
+                                              ,[TasaVictoria]
+                                    FROM [PiedraPapelTijera1DB].[dbo].[Jugadores]
+                                    WHERE [NombreJugador] = '{usuario}' 
+                                      AND [Contrasenia] = '{contrasena}'"
+                                    );
+
+                                    // CASO: NO SE ENCONTRÓ EL USUARIO
+                                    if (datosUsuario.Length == 1 && datosUsuario[0].StartsWith("Error"))
+                                    {
+                                        string respuesta = "Error|Credenciales incorrectas\n";
+                                        byte[] dataError = Encoding.UTF8.GetBytes(respuesta);
+                                        stream.Write(dataError, 0, dataError.Length);
+                                        break;
+                                    }
+
+                                    // CASO: EL USUARIO EXISTE → enviar datos
+                                    string respuestaOK = string.Join("|", datosUsuario) + "\n";
+                                    byte[] dataOK = Encoding.UTF8.GetBytes(respuestaOK);
+                                    stream.Write(dataOK, 0, dataOK.Length);
+
+                                    break;
+
+                                }
+                            case "CrearCuenta":
+                                {
+                                    // argumentos = "Javier|Password12"
+                                    string[] partes = argumentos.Split('|');
+
+                                    // Validar formato correcto
+                                    if (partes.Length < 2)
+                                    {
+                                        string respuesta = "Error|Formato incorrecto\n";
+                                        byte[] dataErr = Encoding.UTF8.GetBytes(respuesta);
+                                        stream.Write(dataErr, 0, dataErr.Length);
+                                        break;
+                                    }
+
+                                    string usuario = partes[0];
+                                    string contrasena = partes[1];
+
+                                    // Consultar en la base de datos
+                                    int filasAfectadas = BDconexion.ejecutarConsulta(
+                                        $@"INSERT INTO [dbo].[Jugadores]
+                                               ([NombreJugador]
+                                               ,[Contrasenia])
+                                         VALUES
+                                               ('{usuario}'
+                                               ,'{contrasena}')"
+                                    );
+
+                                    // CASO: NO SE ENCONTRÓ EL USUARIO
+                                    if (filasAfectadas == 0)
+                                    {
+                                        string respuesta = "Error|Credenciales incorrectas\n";
+                                        byte[] dataError = Encoding.UTF8.GetBytes(respuesta);
+                                        stream.Write(dataError, 0, dataError.Length);
+                                        break;
+                                    }
+
+                                    // CASO: EL USUARIO EXISTE → enviar datos
+                                    string respuestaOK = $"{usuario}" + "\n";
+                                    byte[] dataOK = Encoding.UTF8.GetBytes(respuestaOK);
+                                    stream.Write(dataOK, 0, dataOK.Length);
+
                                     break;
                                 }
-                                else
-                                {
-                                    string respuesta = string.Join("|", datosUsuario) + "\n";
-                                    byte[] data = Encoding.UTF8.GetBytes(respuesta);
-                                    stream.Write(data, 0, data.Length);
-                                    break;
-                                }
-                            }
+
                         }
 
                         lineasPendientes.Clear();
