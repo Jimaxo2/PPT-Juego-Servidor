@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -49,6 +50,44 @@ namespace PPT_Juego_Servidor
             }
 
             return filasAfectadas;
+        }
+
+        public static string[] obtenerDatos(string consulta)
+        {
+            // Valor a devolver
+            string[] strReturn;
+
+            try
+            {
+                conn.Open();
+
+                SqlCommand comando = new SqlCommand(consulta, conn);
+
+                SqlDataReader reader = comando.ExecuteReader();
+
+                reader.Read();
+
+                strReturn = new string[reader.FieldCount];
+
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    strReturn[i] = reader.GetValue(i).ToString();
+                }
+
+                reader.Close();
+
+            }
+            catch (SqlException e)
+            {
+                strReturn = new string[1];
+                strReturn[0] = "Error: " + e.Message;
+            }
+            finally
+            {
+                conn?.Close();
+            }
+
+            return strReturn;
         }
 
     }
