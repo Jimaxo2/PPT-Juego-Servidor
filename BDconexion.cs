@@ -15,8 +15,7 @@ namespace PPT_Juego_Servidor
         // Conexion Jimmy
         public static SqlConnection conn = new SqlConnection("Server=MSI\\MSSQLSERVER02;Database=_NombreBaseDeDatos_;Integrated Security=True;TrustServerCertificate=True;");
        //Conexion Mari
-        
-        public static SqlConnection conn = new SqlConnection( "Server=DESKTOP-RO62CP8\\MARILUBERSK;Database=PiedraPapelTijera1DB;Integrated Security= True;TrustServerCertificate=True;");
+        //public static SqlConnection conn = new SqlConnection( "Server=DESKTOP-RO62CP8\\MARILUBERSK;Database=PiedraPapelTijera1DB;Integrated Security= True;TrustServerCertificate=True;");
         public static int ejecutarConsulta(string consulta)
         {
             // Inicializamos la conexion
@@ -79,7 +78,7 @@ namespace PPT_Juego_Servidor
                 reader.Close();
 
             }
-            catch (SqlException e)
+            catch (Exception e)
             {
                 strReturn = new string[1];
                 strReturn[0] = "Error: " + e.Message;
