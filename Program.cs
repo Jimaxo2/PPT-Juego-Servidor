@@ -240,9 +240,7 @@ namespace PPT_Juego_Servidor
 
             // Espera a que ambos jugadores estén logueados
             while (NombreJ1 == null || NombreJ2 == null)
-            {
                 Thread.Sleep(500);
-            }
 
             // Notifica inicio
             byte[] msgInicio = Encoding.UTF8.GetBytes("Mensaje|¡Comienza el juego!\n");
@@ -270,38 +268,68 @@ namespace PPT_Juego_Servidor
 
                 Console.WriteLine($"Jugador {numeroJugador} tiró: {respuesta}");
 
-                // Espera a que el oponente juegue
+                // Esperar al otro jugador
                 while (JugadaJ1 == null || JugadaJ2 == null)
-                {
                     Thread.Sleep(100);
-                }
 
-                // Calcula y envía resultado
-                string resultado = CalcularGanador(JugadaJ1, JugadaJ2);
-                byte[] msgRes = Encoding.UTF8.GetBytes($"Resultado|{resultado}\n");
+               
+                //    ENVIAR RESULTADOS COMPLETOS (Nombres + Jugadas)
+           
+                string resultadoCompleto =
+                    $"ResultadoCompleto|{NombreJ1},{JugadaJ1},{NombreJ2},{JugadaJ2}\n";
 
-                try { stream.Write(msgRes, 0, msgRes.Length); } catch { }
+                byte[] paqueteRes = Encoding.UTF8.GetBytes(resultadoCompleto);
 
-                // Intenta enviar resultado también al otro jugador
+                // Enviar al jugador actual
+                try { stream.Write(paqueteRes, 0, paqueteRes.Length); } catch { }
+
+                // Enviar al otro jugador
                 try
                 {
                     TcpClient otro = (numeroJugador == 1) ? Jugador2 : Jugador1;
                     if (otro != null && otro.Connected)
                     {
                         NetworkStream sOtro = otro.GetStream();
-                        sOtro.Write(msgRes, 0, msgRes.Length);
+                        sOtro.Write(paqueteRes, 0, paqueteRes.Length);
+                    }
+                }
+                catch { }
+
+                //   ESPERAR 3 SEGUNDOS ANTES DE MOSTRAR GANADOR
+              
+                Thread.Sleep(3000);
+
+                //    CALCULAR GANADOR Y ENVIARLO
+             
+                string ganador = CalcularGanador(JugadaJ1, JugadaJ2);
+                string msgGanador = $"Ganador|{ganador}\n";
+
+                byte[] dataGanador = Encoding.UTF8.GetBytes(msgGanador);
+
+                // Enviar a jugador actual
+                try { stream.Write(dataGanador, 0, dataGanador.Length); } catch { }
+
+                // Enviar al oponente
+                try
+                {
+                    TcpClient otro = (numeroJugador == 1) ? Jugador2 : Jugador1;
+                    if (otro != null && otro.Connected)
+                    {
+                        NetworkStream sOtro = otro.GetStream();
+                        sOtro.Write(dataGanador, 0, dataGanador.Length);
                     }
                 }
                 catch { }
             }
 
-            Thread.Sleep(3000); // Pausa final
-            try { stream.Close(); } catch { } // Desconecta
+            // Cerrar conexiones
+            Thread.Sleep(2000);
+            try { stream.Close(); } catch { }
 
             Console.WriteLine($"Jugador {numeroJugador} desconectado.");
 
-            if (numeroJugador == 1) { if (Jugador1 != null) Jugador1.Close(); }
-            else { if (Jugador2 != null) Jugador2.Close(); }
+            if (numeroJugador == 1) { Jugador1?.Close(); }
+            else { Jugador2?.Close(); }
         }
 
         private static string CalcularGanador(string j1, string j2)
