@@ -303,19 +303,6 @@ namespace PPT_Juego_Servidor
             if (numeroJugador == 1) { if (Jugador1 != null) Jugador1.Close(); }
             else { if (Jugador2 != null) Jugador2.Close(); }
         }
-        private static string DeterminarGanador(string eleccion1, string eleccion2)
-        {
-            // Empate
-            if (eleccion1 == eleccion2)
-                return "Empate";
-
-            // Jugador 1 gana
-            if ((eleccion1 == "Piedra" && eleccion2 == "Tijera") ||
-                (eleccion1 == "Papel" && eleccion2 == "Piedra") ||
-                (eleccion1 == "Tijera" && eleccion2 == "Papel"))
-            {
-                return "Jugador1";
-            }
 
         private static string CalcularGanador(string j1, string j2)
         {
