@@ -13,13 +13,13 @@ namespace PPT_Juego_Servidor
     internal class BDconexion
     {
         // Conexion Jimmy
-        //public static SqlConnection conn = new SqlConnection("Server=MSI\\MSSQLSERVER02;Database=_NombreBaseDeDatos_;Integrated Security=True;TrustServerCertificate=True;");
+        public static SqlConnection conn = new SqlConnection("Server=MSI\\MSSQLSERVER02;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
         //Conexion Mari
         //public static SqlConnection conn = new SqlConnection( "Server=DESKTOP-RO62CP8\\MARILUBERSK;Database=PiedraPapelTijera1DB;Integrated Security= True;TrustServerCertificate=True;");
         // Conexión Paul
         //public static SqlConnection conn = new SqlConnection("Server=localhost\\SQLEXPRESS;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
         // Conexion Hector
-        public static SqlConnection conn = new SqlConnection("Server=LAP-HECTRON\\MIBASEDEDATOS;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
+        //public static SqlConnection conn = new SqlConnection("Server=LAP-HECTRON\\MIBASEDEDATOS;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
         public static int ejecutarConsulta(string consulta)
         {
             // Inicializamos la conexion
