@@ -18,8 +18,8 @@ namespace PPT_Juego_Servidor
         //public static SqlConnection conn = new SqlConnection( "Server=DESKTOP-RO62CP8\\MARILUBERSK;Database=PiedraPapelTijera1DB;Integrated Security= True;TrustServerCertificate=True;");
         // Conexión Paul
         //public static SqlConnection conn = new SqlConnection("Server=localhost\\SQLEXPRESS;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
-        // Conexión Carlos :b
-        //public static SqlConnection conn = new SqlConnection("Server=ELRATONVAKERO89\\SQLEXPRESS;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
+        // Conexion Hector
+        public static SqlConnection conn = new SqlConnection("Server=LAP-HECTRON\\MIBASEDEDATOS;Database=PiedraPapelTijera1DB;Integrated Security=True;TrustServerCertificate=True;");
         public static int ejecutarConsulta(string consulta)
         {
             // Inicializamos la conexion

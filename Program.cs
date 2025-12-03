@@ -1,71 +1,123 @@
 ﻿using PPT_Juego_Cliente.Models;
+using PPT_Juego_Servidor;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using PPT_Juego_Servidor;
 using System.Windows.Forms.VisualStyles;
 
 namespace PPT_Juego_Servidor
 {
     internal class Program
     {
+        // Variables estáticas compartidas entre todos los hilos (Jugadores)
         static TcpClient Jugador1;
         static TcpClient Jugador2;
-
-        static string eleccionJugador1 = null;
-        static string eleccionJugador2 = null;
-        static int idJugador1 = 0;
-        static int idJugador2 = 0;
-        static string nombreJugador1 = "";
-        static string nombreJugador2 = "";
-        static object lockElecciones = new object();
+        static string NombreJ1 = null;
+        static string NombreJ2 = null;
+        static string JugadaJ1 = null;
+        static string JugadaJ2 = null;
+        static bool JuegoEnCurso = true;
 
         static void Main(string[] args)
         {
+            // Inicia el servidor en el puerto 5000
             TcpListener server = new TcpListener(IPAddress.Any, 5000);
             server.Start();
             Console.WriteLine("Servidor iniciado en puerto 5000...");
 
-            Jugador1 = server.AcceptTcpClient();
-            Console.WriteLine("Jugador 1 conectado.");
+            while (true) // Bucle infinito para permitir múltiples partidas
+            {
+                Console.WriteLine("\n--- Iniciando nueva sala de espera ---");
 
-            Thread AccionesJugador1 = new Thread(() => AtenderJugador(Jugador1));
-            AccionesJugador1.Start();
+                // Reinicia variables
+                NombreJ1 = null;
+                NombreJ2 = null;
+                JugadaJ1 = null;
+                JugadaJ2 = null;
 
-            Jugador2 = server.AcceptTcpClient();
-            Console.WriteLine("Jugador 2 conectado.");
+                // Espera conexión del Jugador 1
+                Jugador1 = server.AcceptTcpClient();
+                Console.WriteLine("Jugador 1 conectado.");
 
-            Thread AccionesJugador2 = new Thread(() => AtenderJugador(Jugador2));
-            AccionesJugador2.Start();
+                // Crea un hilo independiente para J1
+                Thread AccionesJugador1 = new Thread(() => AtenderJugador(Jugador1, 1));
+                AccionesJugador1.Start();
 
-            Console.WriteLine("Ambos jugadores conectados. Iniciando el juego...");
+                // Espera conexión del Jugador 2
+                Jugador2 = server.AcceptTcpClient();
+                Console.WriteLine("Jugador 2 conectado.");
 
+                // Crea un hilo independiente para J2
+                Thread AccionesJugador2 = new Thread(() => AtenderJugador(Jugador2, 2));
+                AccionesJugador2.Start();
+
+                Console.WriteLine("Ambos jugadores conectados. Iniciando el juego...");
+
+                // Mantiene el Main en espera mientras dure la partida
+                while (AccionesJugador1.IsAlive || AccionesJugador2.IsAlive)
+                {
+                    Thread.Sleep(1000);
+                }
+
+                Console.WriteLine("Partida terminada. Reiniciando servidor para nuevos clientes...");
+            }
         }
 
-        private static void AtenderJugador(TcpClient jugador)
+        private static void AtenderJugador(TcpClient jugador, int numeroJugador)
         {
-            NetworkStream stream = jugador.GetStream();
+            NetworkStream stream = null;
+            try
+            {
+                stream = jugador.GetStream(); // Obtiene flujo de datos
+            }
+            catch
+            {
+                return; // Error al conectar
+            }
+
             byte[] buffer = new byte[1024];
             StringBuilder acumulador = new StringBuilder();
-
             List<string> lineasPendientes = new List<string>();
 
-            while (true)
+            while (true) // Bucle de escucha de mensajes
             {
-                int bytes = stream.Read(buffer, 0, buffer.Length);
-                string recibido = Encoding.UTF8.GetString(buffer, 0, bytes);
+                int bytes = 0;
 
+                try
+                {
+                    if (!stream.CanRead) break;
+
+                    // Lee datos entrantes
+                    bytes = stream.Read(buffer, 0, buffer.Length);
+
+                    if (bytes == 0) // Cliente desconectado
+                    {
+                        Console.WriteLine($"Jugador {numeroJugador} cerró la conexión.");
+                        break;
+                    }
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine($"Conexión con Jugador {numeroJugador} perdida.");
+                    break;
+                }
+
+                // Decodifica y acumula fragmentos de texto
+                string recibido = Encoding.UTF8.GetString(buffer, 0, bytes);
                 acumulador.Append(recibido);
 
                 string contenido = acumulador.ToString();
                 int indice;
 
+                // Procesa mensajes completos (separados por salto de línea)
                 while ((indice = contenido.IndexOf('\n')) >= 0)
                 {
                     string linea = contenido.Substring(0, indice).TrimEnd('\r');
@@ -75,34 +127,34 @@ namespace PPT_Juego_Servidor
 
                     lineasPendientes.Add(linea);
 
-                    // ¿Ya tenemos dos líneas? -> Procesar mensaje completo
+                    // Si tiene comando + argumentos, ejecuta acción
                     if (lineasPendientes.Count == 2)
                     {
                         string comando = lineasPendientes[0];
                         string argumentos = lineasPendientes[1];
 
-                        switch (comando)
+                        try
                         {
-                            case "IniciarSesion":
-                                {
-                                    // argumentos = "Javier|Password12"
-                                    string[] partes = argumentos.Split('|');
-
-                                    // Validar formato correcto
-                                    if (partes.Length < 2)
+                            switch (comando)
+                            {
+                                case "IniciarSesion":
                                     {
-                                        string respuesta = "Error|Formato incorrecto\n";
-                                        byte[] dataErr = Encoding.UTF8.GetBytes(respuesta);
-                                        stream.Write(dataErr, 0, dataErr.Length);
-                                        break;
-                                    }
+                                        string[] partes = argumentos.Split('|');
 
-                                    string usuario = partes[0];
-                                    string contrasena = partes[1];
+                                        if (partes.Length < 2)
+                                        {
+                                            // Error de formato
+                                            byte[] dataErr = Encoding.UTF8.GetBytes("Error|Formato incorrecto\n");
+                                            stream.Write(dataErr, 0, dataErr.Length);
+                                            break;
+                                        }
 
-                                    // Consultar en la base de datos
-                                    string[] datosUsuario = BDconexion.obtenerDatos(
-                                        $@"SELECT [JugadorID]
+                                        string usuario = partes[0];
+                                        string contrasena = partes[1];
+
+                                        // Valida credenciales en BD
+                                        string[] datosUsuario = BDconexion.obtenerDatos(
+                                            $@"SELECT [JugadorID]
                                               ,[NombreJugador]
                                               ,[Contrasenia]
                                               ,[TotalPartidas]
@@ -110,164 +162,146 @@ namespace PPT_Juego_Servidor
                                               ,[PartidasEmpatadas]
                                               ,[PartidasPerdidas]
                                               ,[TasaVictoria]
-                                    FROM [PiedraPapelTijera1DB].[dbo].[Jugadores]
-                                    WHERE [NombreJugador] = '{usuario}' 
-                                      AND [Contrasenia] = '{contrasena}'"
-                                    );
+                                              FROM [PiedraPapelTijera1DB].[dbo].[Jugadores]
+                                              WHERE [NombreJugador] = '{usuario}' 
+                                              AND [Contrasenia] = '{contrasena}'"
+                                            );
 
-                                    // CASO: NO SE ENCONTRÓ EL USUARIO
-                                    if (datosUsuario.Length == 1 && datosUsuario[0].StartsWith("Error"))
-                                    {
-                                        string respuesta = "Error|Credenciales incorrectas\n";
-                                        byte[] dataError = Encoding.UTF8.GetBytes(respuesta);
-                                        stream.Write(dataError, 0, dataError.Length);
-                                        break;
-                                    }
-
-                                    // CASO: EL USUARIO EXISTE → enviar datos
-                                    bool esJugador1 = (jugador == Jugador1);
-
-                                    if (esJugador1)
-                                    {
-                                        idJugador1 = int.Parse(datosUsuario[0]);
-                                        nombreJugador1 = datosUsuario[1];
-                                    }
-                                    else
-                                    {
-                                        idJugador2 = int.Parse(datosUsuario[0]);
-                                        nombreJugador2 = datosUsuario[1];
-                                    }
-
-                                    string respuestaOK = string.Join("|", datosUsuario) + "\n";
-                                    byte[] dataOK = Encoding.UTF8.GetBytes(respuestaOK);
-                                    stream.Write(dataOK, 0, dataOK.Length);
-
-                                    Console.WriteLine($"{(esJugador1 ? "Jugador 1" : "Jugador 2")} inició sesión: {usuario}");
-                                    break;
-
-                                }
-                            case "CrearCuenta":
-                                {
-                                    // argumentos = "Javier|Password12"
-                                    string[] partes = argumentos.Split('|');
-
-                                    // Validar formato correcto
-                                    if (partes.Length < 2)
-                                    {
-                                        string respuesta = "Error|Formato incorrecto\n";
-                                        byte[] dataErr = Encoding.UTF8.GetBytes(respuesta);
-                                        stream.Write(dataErr, 0, dataErr.Length);
-                                        break;
-                                    }
-
-                                    string usuario = partes[0];
-                                    string contrasena = partes[1];
-
-                                    // Consultar en la base de datos
-                                    int filasAfectadas = BDconexion.ejecutarConsulta(
-                                        $@"INSERT INTO [dbo].[Jugadores]
-                                               ([NombreJugador]
-                                               ,[Contrasenia])
-                                         VALUES
-                                               ('{usuario}'
-                                               ,'{contrasena}')"
-                                    );
-
-                                    // CASO: NO SE ENCONTRÓ EL USUARIO
-                                    if (filasAfectadas == 0)
-                                    {
-                                        string respuesta = "Error|Credenciales incorrectas\n";
-                                        byte[] dataError = Encoding.UTF8.GetBytes(respuesta);
-                                        stream.Write(dataError, 0, dataError.Length);
-                                        break;
-                                    }
-
-                                    // CASO: EL USUARIO EXISTE → enviar datos
-                                    string respuestaOK = $"{usuario}" + "\n";
-                                    byte[] dataOK = Encoding.UTF8.GetBytes(respuestaOK);
-                                    stream.Write(dataOK, 0, dataOK.Length);
-
-                                    break;
-                                }
-                            case "Eleccion":
-                                {
-                                    // argumentos = "Piedra" o "Papel" o "Tijera"
-                                    string eleccion = argumentos.Trim();
-
-                                    if (eleccion != "Piedra" && eleccion != "Papel" && eleccion != "Tijera")
-                                    {
-                                        string respuesta = "Error|Elección inválida\n";
-                                        byte[] dataErr = Encoding.UTF8.GetBytes(respuesta);
-                                        stream.Write(dataErr, 0, dataErr.Length);
-                                        break;
-                                    }
-
-                                    lock (lockElecciones)
-                                    {
-                                        // Guardar la elección del jugador basado en su stream
-                                        bool esJugador1 = (jugador == Jugador1);
-
-                                        if (esJugador1)
+                                        // Usuario no encontrado
+                                        if (datosUsuario.Length == 1 && datosUsuario[0].StartsWith("Error"))
                                         {
-                                            eleccionJugador1 = eleccion;
-                                            Console.WriteLine($"[{nombreJugador1}] eligió: {eleccion}");
+                                            byte[] dataError = Encoding.UTF8.GetBytes("Error|Credenciales incorrectas\n");
+                                            stream.Write(dataError, 0, dataError.Length);
+                                            break;
                                         }
+
+                                        // Usuario encontrado: envía datos
+                                        string respuestaOK = string.Join("|", datosUsuario) + "\n";
+                                        byte[] dataOK = Encoding.UTF8.GetBytes(respuestaOK);
+                                        stream.Write(dataOK, 0, dataOK.Length);
+
+                                        // Asigna nombre global
+                                        if (numeroJugador == 1)
+                                            NombreJ1 = datosUsuario[1].Trim();
                                         else
-                                        {
-                                            eleccionJugador2 = eleccion;
-                                            Console.WriteLine($"[{nombreJugador2}] eligió: {eleccion}");
-                                        }
+                                            NombreJ2 = datosUsuario[1].Trim();
 
-                                        // Verificar si ambos jugadores ya eligieron
-                                        if (eleccionJugador1 != null && eleccionJugador2 != null)
-                                        {
-                                            Console.WriteLine("\n ESPERANDO RESULTADO");
-
-                                            // Determinar el resultado
-                                            string resultado = DeterminarGanador(eleccionJugador1, eleccionJugador2);
-                                            Console.WriteLine($"Resultado: {resultado}");
-                                            Console.WriteLine($"{nombreJugador1}: {eleccionJugador1} vs {nombreJugador2}: {eleccionJugador2}");
-
-                                            // Registrar encuentro en BD
-                                            int ganadorID = 0; // 0 = empate
-                                            if (resultado == "Jugador1")
-                                                ganadorID = idJugador1;
-                                            else if (resultado == "Jugador2")
-                                                ganadorID = idJugador2;
-
-                                            RegistrarEncuentro(idJugador1, idJugador2, eleccionJugador1, eleccionJugador2, ganadorID);
-
-                                            // Enviar resultado a ambos jugadores
-                                            string mensajeResultado = $"Resultado\n{resultado}|{eleccionJugador1}|{eleccionJugador2}|{nombreJugador1}|{nombreJugador2}\n";
-
-                                            byte[] dataJ1 = Encoding.UTF8.GetBytes(mensajeResultado);
-                                            Jugador1.GetStream().Write(dataJ1, 0, dataJ1.Length);
-
-                                            byte[] dataJ2 = Encoding.UTF8.GetBytes(mensajeResultado);
-                                            Jugador2.GetStream().Write(dataJ2, 0, dataJ2.Length);
-
-                                            Console.WriteLine("RESULTADO ENVIADO\n");
-
-                                            // Reiniciar elecciones para la próxima ronda
-                                            eleccionJugador1 = null;
-                                            eleccionJugador2 = null;
-                                        }
-                                        else
-                                        {
-                                            // Confirmar recepción y esperar al otro jugador
-                                            string respuesta = "Esperando|Esperando al otro jugador...\n";
-                                            byte[] data = Encoding.UTF8.GetBytes(respuesta);
-                                            stream.Write(data, 0, data.Length);
-                                        }
+                                        // Inicia lógica del juego
+                                        IniciarCicloDeJuego(stream, numeroJugador);
+                                        return; // Sale del hilo al terminar
                                     }
-                                    break;
-                                }
+
+                                case "CrearCuenta":
+                                    {
+                                        string[] partes = argumentos.Split('|');
+                                        if (partes.Length < 2) { /* Error formato */ break; }
+
+                                        string usuario = partes[0];
+                                        string contrasena = partes[1];
+
+                                        // Inserta nuevo usuario en BD
+                                        int filasAfectadas = BDconexion.ejecutarConsulta(
+                                            $@"INSERT INTO [dbo].[Jugadores] ([NombreJugador],[Contrasenia])
+                                              VALUES ('{usuario}','{contrasena}')"
+                                            );
+
+                                        if (filasAfectadas == 0)
+                                        {
+                                            byte[] dataError = Encoding.UTF8.GetBytes("Error|Credenciales incorrectas\n");
+                                            stream.Write(dataError, 0, dataError.Length);
+                                            break;
+                                        }
+
+                                        // Éxito al crear
+                                        byte[] dataOK = Encoding.UTF8.GetBytes($"{usuario}\n");
+                                        stream.Write(dataOK, 0, dataOK.Length);
+                                        break;
+                                    }
+                            }
+                        }
+                        catch
+                        {
+                            break;
                         }
 
                         lineasPendientes.Clear();
                     }
                 }
             }
+
+            // Cierra recursos
+            try { stream?.Close(); } catch { }
+            try { jugador?.Close(); } catch { }
+        }
+
+        private static void IniciarCicloDeJuego(NetworkStream stream, int numeroJugador)
+        {
+            Console.WriteLine($"Jugador {numeroJugador} listo para jugar");
+
+            // Espera a que ambos jugadores estén logueados
+            while (NombreJ1 == null || NombreJ2 == null)
+            {
+                Thread.Sleep(500);
+            }
+
+            // Notifica inicio
+            byte[] msgInicio = Encoding.UTF8.GetBytes("Mensaje|¡Comienza el juego!\n");
+            stream.Write(msgInicio, 0, msgInicio.Length);
+
+            // Reinicia jugadas
+            if (numeroJugador == 1) JugadaJ1 = null;
+            else JugadaJ2 = null;
+
+            // Solicita jugada
+            byte[] msgPedir = Encoding.UTF8.GetBytes("PedirJugada|Elige\n");
+            try { stream.Write(msgPedir, 0, msgPedir.Length); } catch { return; }
+
+            // Lee respuesta del jugador
+            byte[] buffer = new byte[1024];
+            int bytes = 0;
+            try { bytes = stream.Read(buffer, 0, buffer.Length); } catch { }
+
+            if (bytes > 0)
+            {
+                string respuesta = Encoding.UTF8.GetString(buffer, 0, bytes).Trim();
+
+                if (numeroJugador == 1) JugadaJ1 = respuesta;
+                else JugadaJ2 = respuesta;
+
+                Console.WriteLine($"Jugador {numeroJugador} tiró: {respuesta}");
+
+                // Espera a que el oponente juegue
+                while (JugadaJ1 == null || JugadaJ2 == null)
+                {
+                    Thread.Sleep(100);
+                }
+
+                // Calcula y envía resultado
+                string resultado = CalcularGanador(JugadaJ1, JugadaJ2);
+                byte[] msgRes = Encoding.UTF8.GetBytes($"Resultado|{resultado}\n");
+
+                try { stream.Write(msgRes, 0, msgRes.Length); } catch { }
+
+                // Intenta enviar resultado también al otro jugador
+                try
+                {
+                    TcpClient otro = (numeroJugador == 1) ? Jugador2 : Jugador1;
+                    if (otro != null && otro.Connected)
+                    {
+                        NetworkStream sOtro = otro.GetStream();
+                        sOtro.Write(msgRes, 0, msgRes.Length);
+                    }
+                }
+                catch { }
+            }
+
+            Thread.Sleep(3000); // Pausa final
+            try { stream.Close(); } catch { } // Desconecta
+
+            Console.WriteLine($"Jugador {numeroJugador} desconectado.");
+
+            if (numeroJugador == 1) { if (Jugador1 != null) Jugador1.Close(); }
+            else { if (Jugador2 != null) Jugador2.Close(); }
         }
         private static string DeterminarGanador(string eleccion1, string eleccion2)
         {
@@ -283,39 +317,23 @@ namespace PPT_Juego_Servidor
                 return "Jugador1";
             }
 
-            // Jugador 2 gana
-            return "Jugador2";
-        }
-
-        private static void RegistrarEncuentro(int idJ1, int idJ2, string elecJ1, string elecJ2, int ganadorID)
+        private static string CalcularGanador(string j1, string j2)
         {
-            try
+            j1 = j1.ToUpper();
+            j2 = j2.ToUpper();
+
+            if (j1 == j2) return "Empate";
+
+            // Lógica Piedra-Papel-Tijera
+            if ((j1 == "PIEDRA" && j2 == "TIJERA") ||
+                (j1 == "PAPEL" && j2 == "PIEDRA") ||
+                (j1 == "TIJERA" && j2 == "PAPEL"))
             {
-                string ganadorIDStr = (ganadorID == 0) ? "NULL" : ganadorID.ToString();
-
-                string consulta = $@"INSERT INTO [dbo].[Encuentros]
-                                   ([JugadorA]
-                                   ,[JugadorB]
-                                   ,[GanadorID]
-                                   ,[EleccionJugadorA]
-                                   ,[EleccionJugadorB])
-                             VALUES
-                                   ({idJ1}
-                                   ,{idJ2}
-                                   ,{ganadorIDStr}
-                                   ,'{elecJ1}'
-                                   ,'{elecJ2}')";
-
-                int filasAfectadas = BDconexion.ejecutarConsulta(consulta);
-
-                if (filasAfectadas > 0)
-                    Console.WriteLine("Encuentro registrado en la base de datos");
-                else
-                    Console.WriteLine("Error al registrar el encuentro");
+                return $"GANADOR: {NombreJ1}";
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Error en RegistrarEncuentro: {ex.Message}");
+                return $"GANADOR: {NombreJ2}";
             }
         }
     }
