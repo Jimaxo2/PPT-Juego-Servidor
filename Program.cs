@@ -297,7 +297,7 @@ namespace PPT_Juego_Servidor
 
                 //   ESPERAR 3 SEGUNDOS ANTES DE MOSTRAR GANADOR
               
-                Thread.Sleep(3000);
+                Thread.Sleep(4000);
 
                 //    CALCULAR GANADOR Y ENVIARLO
              
