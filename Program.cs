@@ -334,20 +334,59 @@ namespace PPT_Juego_Servidor
 
         private static string CalcularGanador(string j1, string j2)
         {
-            j1 = j1.ToUpper();
-            j2 = j2.ToUpper();
+            string consulta;
 
-            if (j1 == j2) return "Empate";
+            if (j1 == j2) 
+            {
+                consulta = $@"INSERT INTO [dbo].[Encuentros]
+                               ([JugadorA]
+                               ,[JugadorB]
+                               ,[EleccionJugadorA]
+                               ,[EleccionJugadorB])
+                         VALUES
+                               ((SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ1}' )
+                               ,(SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ2}' )
+                               ,'{j1}'
+                               ,'{j2}')";
+                BDconexion.ejecutarConsulta(consulta);
+                return "Empate";
+            }
 
             // Lógica Piedra-Papel-Tijera
-            if ((j1 == "PIEDRA" && j2 == "TIJERA") ||
-                (j1 == "PAPEL" && j2 == "PIEDRA") ||
-                (j1 == "TIJERA" && j2 == "PAPEL"))
+            if ((j1 == "Piedra" && j2 == "Tijera") ||
+                (j1 == "Papel" && j2 == "Piedra") ||
+                (j1 == "Tijera" && j2 == "Papel"))
             {
+                consulta = $@"INSERT INTO [dbo].[Encuentros]
+                           ([JugadorA]
+                           ,[JugadorB]
+                           ,[GanadorID]
+                           ,[EleccionJugadorA]
+                           ,[EleccionJugadorB])
+                     VALUES
+                           ((SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ1}' )
+                           ,(SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ2}' )
+                           ,(SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ1}' )
+                           ,'{j1}'
+                           ,'{j2}')";
+                BDconexion.ejecutarConsulta(consulta);
                 return $"GANADOR: {NombreJ1}";
             }
             else
             {
+                consulta = $@"INSERT INTO [dbo].[Encuentros]
+                           ([JugadorA]
+                           ,[JugadorB]
+                           ,[GanadorID]
+                           ,[EleccionJugadorA]
+                           ,[EleccionJugadorB])
+                     VALUES
+                           ((SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ1}' )
+                           ,(SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ2}' )
+                           ,(SELECT [JugadorID] FROM [dbo].Jugadores WHERE [NombreJugador] = '{NombreJ2}' )
+                           ,'{j1}'
+                           ,'{j2}')";
+                BDconexion.ejecutarConsulta(consulta);
                 return $"GANADOR: {NombreJ2}";
             }
         }
